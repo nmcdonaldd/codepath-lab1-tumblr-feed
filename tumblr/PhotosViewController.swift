@@ -16,6 +16,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
     var refreshControl: UIRefreshControl!
     var isMoreDataLoading: Bool = false
     var loadingMoreDataActivityView: InfiniteScrollActivityView?
+    var currentPage: Int = 0
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -70,7 +71,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
     }
     
     @objc private func getTumblrPosts() {
-        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=\(tumblrAPIKey)")
+        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=\(tumblrAPIKey)&\(postOffsetRequestParam)\(self.currentPage)")
         let request = URLRequest(url: url!)
         let session = URLSession(
             configuration: URLSessionConfiguration.default,
@@ -92,7 +93,8 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
                         let responseFieldDictionary = responseDictionary["response"] as! NSDictionary
                         
                         // This is where you will store the returned array of posts in your posts property
-                        self.posts = responseFieldDictionary["posts"] as! [NSDictionary]
+                        self.posts += responseFieldDictionary["posts"] as! [NSDictionary]
+                        self.currentPage += self.posts.count
                         self.refreshControl.endRefreshing()
                         self.loadingMoreDataActivityView?.stopAnimating()
                         self.feedTableView.reloadData()

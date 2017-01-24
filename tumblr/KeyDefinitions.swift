@@ -7,4 +7,5 @@
 //
 
 let tumblrAPIKey: String = "Q6vHoaVm5L1u2ZAW1fqv3Jw48gFzYVg9P0vH0VHl3GVy6quoGV"
-let photoTableViewCellIdentifer = "PhotoCell"
+let photoTableViewCellIdentifer: String = "PhotoCell"
+let postOffsetRequestParam: String = "offset="
