@@ -9,11 +9,13 @@
 import UIKit
 import AFNetworking
 
-class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
+class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate {
     
     @IBOutlet weak var feedTableView: UITableView!
     var posts: [NSDictionary] = []
     var refreshControl: UIRefreshControl!
+    var isMoreDataLoading: Bool = false
+    var loadingMoreDataActivityView: InfiniteScrollActivityView?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -23,6 +25,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         self.getTumblrPosts()
         self.feedTableView.rowHeight = 240
         self.setUpRefreshControl()
+        self.setUpInfiniteScrollingLoadingIndicator()
         
     }
 
@@ -31,11 +34,39 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         // Dispose of any resources that can be recreated.
     }
     
+    private func setUpInfiniteScrollingLoadingIndicator() {
+        let frame = CGRect(x: 0, y: self.feedTableView.contentSize.height, width: self.feedTableView.bounds.size.width, height: InfiniteScrollActivityView.defaultDrawHeight)
+        self.loadingMoreDataActivityView = InfiniteScrollActivityView(frame: frame)
+        self.loadingMoreDataActivityView!.isHidden = true
+        self.feedTableView.addSubview(self.loadingMoreDataActivityView!)
+        
+        var insets = self.feedTableView.contentInset;
+        insets.bottom += InfiniteScrollActivityView.defaultDrawHeight;
+        self.feedTableView.contentInset = insets
+    }
+    
     private func setUpRefreshControl() {
         let refreshControl: UIRefreshControl = UIRefreshControl()
         refreshControl.addTarget(self, action: #selector(self.getTumblrPosts), for: .valueChanged)
         self.refreshControl = refreshControl
         self.feedTableView.refreshControl = refreshControl
+    }
+    
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if (!self.isMoreDataLoading) {
+            let scrollViewContentHeight = self.feedTableView.contentSize.height
+            let scrollOffsetThreshold = scrollViewContentHeight - self.feedTableView.bounds.size.height
+            
+            // When the user has scrolled past the threshold, start requesting
+            if(scrollView.contentOffset.y > scrollOffsetThreshold && self.feedTableView.isDragging) {
+                self.isMoreDataLoading = true
+                let frame = CGRect(x: 0, y: self.feedTableView.contentSize.height, width: self.feedTableView.bounds.width, height: InfiniteScrollActivityView.defaultDrawHeight)
+                self.loadingMoreDataActivityView?.frame = frame
+                self.loadingMoreDataActivityView?.startAnimating()
+                
+                self.getTumblrPosts()
+            }
+        }
     }
     
     @objc private func getTumblrPosts() {
@@ -53,6 +84,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
                 if let data = data {
                     if let responseDictionary = try! JSONSerialization.jsonObject(
                         with: data, options:[]) as? NSDictionary {
+                        self.isMoreDataLoading = false
                         //print("responseDictionary: \(responseDictionary)")
                         
                         // Recall there are two fields in the response dictionary, 'meta' and 'response'.
@@ -62,6 +94,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
                         // This is where you will store the returned array of posts in your posts property
                         self.posts = responseFieldDictionary["posts"] as! [NSDictionary]
                         self.refreshControl.endRefreshing()
+                        self.loadingMoreDataActivityView?.stopAnimating()
                         self.feedTableView.reloadData()
                     }
                 }
