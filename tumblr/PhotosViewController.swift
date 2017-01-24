@@ -87,10 +87,10 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
             if let imageUrl = URL(string: imageUrlString!) {
                 cell.postImageView.setImageWith(imageUrl)
             } else {
-                
+                // Nothing
             }
         } else {
-            
+            // Nothing
         }
         
         return cell
