@@ -13,6 +13,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
     
     @IBOutlet weak var feedTableView: UITableView!
     var posts: [NSDictionary] = []
+    var refreshControl: UIRefreshControl!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,8 +22,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         self.feedTableView.delegate = self
         self.getTumblrPosts()
         self.feedTableView.rowHeight = 240
-
-        // Do any additional setup after loading the view.
+        self.setUpRefreshControl()
         
     }
 
@@ -31,7 +31,14 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         // Dispose of any resources that can be recreated.
     }
     
-    private func getTumblrPosts() {
+    private func setUpRefreshControl() {
+        let refreshControl: UIRefreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(self.getTumblrPosts), for: .valueChanged)
+        self.refreshControl = refreshControl
+        self.feedTableView.refreshControl = refreshControl
+    }
+    
+    @objc private func getTumblrPosts() {
         let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=\(tumblrAPIKey)")
         let request = URLRequest(url: url!)
         let session = URLSession(
@@ -54,6 +61,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
                         
                         // This is where you will store the returned array of posts in your posts property
                         self.posts = responseFieldDictionary["posts"] as! [NSDictionary]
+                        self.refreshControl.endRefreshing()
                         self.feedTableView.reloadData()
                     }
                 }
@@ -62,15 +70,22 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
     }
     
 
-    /*
-    // MARK: - Navigation
+     // MARK: - Navigation
 
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
+     //In a storyboard-based application, you will often want to do a little preparation before navigation
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destinationViewController.
-        // Pass the selected object to the new view controller.
+        //Get the new view controller using segue.destinationViewController.
+        //Pass the selected object to the new view controller.
+        let vc: PhotoDetailsViewController = segue.destination as! PhotoDetailsViewController
+        let index: IndexPath = self.feedTableView.indexPath(for: sender as! PhotoTableViewCell)!
+        let post: NSDictionary = self.posts[index.row]
+        if let photos = post.value(forKeyPath: "photos") as? [NSDictionary] {
+            let imageURLString = photos[0].value(forKeyPath: "original_size.url") as? String
+            if let imageURL = URL(string: imageURLString!) {
+                vc.imageURL = imageURL
+            }
+        }
     }
-    */
     
     
     // MARK: - UITableViewDelegate
@@ -94,6 +109,10 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         }
         
         return cell
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        self.feedTableView.deselectRow(at: indexPath, animated: true)
     }
 
 }
