@@ -9,10 +9,19 @@
 import UIKit
 import AFNetworking
 
-class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
+class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate {
     
     @IBOutlet weak var feedTableView: UITableView!
-    var posts: [NSDictionary] = []
+    var posts: [NSDictionary] = [] {
+        didSet {
+            self.currentPostsOffset = self.posts.count
+        }
+    }
+    var refreshControl: UIRefreshControl!
+    var isMoreDataLoading: Bool = false
+    var loadingMoreDataActivityView: InfiniteScrollActivityView?
+    var currentPostsOffset: Int = 0
+    var isInfiniteScrolling: Bool = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,8 +30,8 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         self.feedTableView.delegate = self
         self.getTumblrPosts()
         self.feedTableView.rowHeight = 240
-
-        // Do any additional setup after loading the view.
+        self.setUpRefreshControl()
+        self.setUpInfiniteScrollingLoadingIndicator()
         
     }
 
@@ -31,8 +40,27 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         // Dispose of any resources that can be recreated.
     }
     
-    private func getTumblrPosts() {
-        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=\(tumblrAPIKey)")
+    private func setUpInfiniteScrollingLoadingIndicator() {
+        let frame = CGRect(x: 0, y: self.feedTableView.contentSize.height, width: self.feedTableView.bounds.size.width, height: InfiniteScrollActivityView.defaultDrawHeight)
+        self.loadingMoreDataActivityView = InfiniteScrollActivityView(frame: frame)
+        self.loadingMoreDataActivityView!.isHidden = true
+        self.feedTableView.addSubview(self.loadingMoreDataActivityView!)
+        
+        var insets = self.feedTableView.contentInset;
+        insets.bottom += InfiniteScrollActivityView.defaultDrawHeight;
+        self.feedTableView.contentInset = insets
+    }
+    
+    private func setUpRefreshControl() {
+        let refreshControl: UIRefreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(self.getTumblrPosts), for: .valueChanged)
+        self.refreshControl = refreshControl
+        self.feedTableView.refreshControl = refreshControl
+    }
+    
+    @objc private func getTumblrPosts() {
+        if (!self.isInfiniteScrolling) { self.currentPostsOffset = 0 }
+        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=\(tumblrAPIKey)&\(postOffsetRequestParam)\(self.currentPostsOffset)")
         let request = URLRequest(url: url!)
         let session = URLSession(
             configuration: URLSessionConfiguration.default,
@@ -40,12 +68,13 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
             delegateQueue:OperationQueue.main
         )
         
-        let task : URLSessionDataTask = session.dataTask(
+        let task: URLSessionDataTask = session.dataTask(
             with: request as URLRequest,
             completionHandler: { (data, response, error) in
                 if let data = data {
                     if let responseDictionary = try! JSONSerialization.jsonObject(
                         with: data, options:[]) as? NSDictionary {
+                        self.isMoreDataLoading = false
                         //print("responseDictionary: \(responseDictionary)")
                         
                         // Recall there are two fields in the response dictionary, 'meta' and 'response'.
@@ -53,24 +82,38 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
                         let responseFieldDictionary = responseDictionary["response"] as! NSDictionary
                         
                         // This is where you will store the returned array of posts in your posts property
-                        self.posts = responseFieldDictionary["posts"] as! [NSDictionary]
+                        
+                        if (self.isInfiniteScrolling) {
+                            self.posts += responseFieldDictionary["posts"] as! [NSDictionary]
+                            self.isInfiniteScrolling = false
+                        } else {
+                            self.posts = responseFieldDictionary["posts"] as! [NSDictionary]
+                        }
+                        
+                        self.refreshControl.endRefreshing()
+                        self.loadingMoreDataActivityView?.stopAnimating()
                         self.feedTableView.reloadData()
                     }
                 }
-        });
+            });
         task.resume()
     }
     
 
-    /*
-    // MARK: - Navigation
+     // MARK: - Navigation
 
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
+     //In a storyboard-based application, you will often want to do a little preparation before navigation
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destinationViewController.
-        // Pass the selected object to the new view controller.
+        let vc: PhotoDetailsViewController = segue.destination as! PhotoDetailsViewController
+        let index: IndexPath = self.feedTableView.indexPath(for: sender as! PhotoTableViewCell)!
+        let post: NSDictionary = self.posts[index.row]
+        if let photos = post.value(forKeyPath: "photos") as? [NSDictionary] {
+            let imageURLString = photos[0].value(forKeyPath: "original_size.url") as? String
+            if let imageURL = URL(string: imageURLString!) {
+                vc.imageURL = imageURL
+            }
+        }
     }
-    */
     
     
     // MARK: - UITableViewDelegate
@@ -95,5 +138,31 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
         
         return cell
     }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        self.feedTableView.deselectRow(at: indexPath, animated: true)
+    }
+    
+    
+    // MARK: - UIScrollViewDelegate
+    // Note: this delegate was not `explicitly` set. It works since our UITableViewDelegate subclass conforms to a UIScrollViewDelegate protocol as well.
+    
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if (!self.isMoreDataLoading) {
+            let scrollViewContentHeight = self.feedTableView.contentSize.height
+            let scrollOffsetThreshold = scrollViewContentHeight - self.feedTableView.bounds.size.height
+            
+            // When the user has scrolled past the threshold, start requesting
+            if(scrollView.contentOffset.y > scrollOffsetThreshold && self.feedTableView.isDragging) {
+                self.isMoreDataLoading = true
+                let frame = CGRect(x: 0, y: self.feedTableView.contentSize.height, width: self.feedTableView.bounds.width, height: InfiniteScrollActivityView.defaultDrawHeight)
+                self.loadingMoreDataActivityView?.frame = frame
+                self.loadingMoreDataActivityView?.startAnimating()
+                self.isInfiniteScrolling = true
+                self.getTumblrPosts()
+            }
+        }
+    }
+
 
 }
