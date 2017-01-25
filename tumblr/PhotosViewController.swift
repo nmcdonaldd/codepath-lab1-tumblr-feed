@@ -14,7 +14,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
     @IBOutlet weak var feedTableView: UITableView!
     var posts: [NSDictionary] = [] {
         didSet {
-            print(posts.count)
+            self.currentPostsOffset = self.posts.count
         }
     }
     var refreshControl: UIRefreshControl!
@@ -59,6 +59,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
     }
     
     @objc private func getTumblrPosts() {
+        if (!self.isInfiniteScrolling) { self.currentPostsOffset = 0 }
         let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=\(tumblrAPIKey)&\(postOffsetRequestParam)\(self.currentPostsOffset)")
         let request = URLRequest(url: url!)
         let session = URLSession(
@@ -82,9 +83,7 @@ class PhotosViewController: UIViewController, UITableViewDelegate, UITableViewDa
                         
                         // This is where you will store the returned array of posts in your posts property
                         
-                        // TODO: - Fix this logic so that the number of posts is retained and a limit for loading the posts is set properly.
                         if (self.isInfiniteScrolling) {
-                            self.currentPostsOffset += self.posts.count
                             self.posts += responseFieldDictionary["posts"] as! [NSDictionary]
                             self.isInfiniteScrolling = false
                         } else {
