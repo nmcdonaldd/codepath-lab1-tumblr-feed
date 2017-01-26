@@ -1,23 +1,30 @@
 //
-//  PhotoDetailsViewController.swift
+//  FullScreenPhotoViewController.swift
 //  tumblr
 //
-//  Created by Nick McDonald on 1/24/17.
+//  Created by Nick McDonald on 1/26/17.
 //  Copyright © 2017 Nick McDonald. All rights reserved.
 //
 
 import UIKit
 
-class PhotoDetailsViewController: UIViewController {
-    
-    @IBOutlet weak var mainImageView: UIImageView!
-    var imageURL:URL!
+class FullScreenPhotoViewController: UIViewController, UIScrollViewDelegate {
 
+    @IBOutlet weak var fullScreenZoomableImageView: UIImageView!
+    var imageToUse: UIImage?
+    
+    @IBOutlet weak var imageScrollView: UIScrollView!
+    
+    @IBAction func onDismissButtonTapped(_ sender: Any) {
+        self.dismiss(animated: true, completion: nil)
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        self.fullScreenZoomableImageView.image = self.imageToUse
+        self.imageScrollView.delegate = self
 
         // Do any additional setup after loading the view.
-        self.mainImageView.setImageWith(self.imageURL)
     }
 
     override func didReceiveMemoryWarning() {
@@ -25,15 +32,9 @@ class PhotoDetailsViewController: UIViewController {
         // Dispose of any resources that can be recreated.
     }
     
-    @IBAction func onPhotoTap(_ sender: UITapGestureRecognizer) {
-        self.performSegue(withIdentifier: "moveToFullScreenPhoto", sender: nil)
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+        return self.fullScreenZoomableImageView
     }
-    
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        let vc = segue.destination as! FullScreenPhotoViewController
-        vc.imageToUse = self.mainImageView.image
-    }
-    
 
     /*
     // MARK: - Navigation
